@@ -14,14 +14,13 @@
  ******************************************/
 const MIN_SIZE = 3;
 const MAX_SIZE = 10;
-const DEFAULT_SIZE = 6;
+const DEFAULT_SIZE = 5;         // il gioco parte sempre da qui
 const SCRAMBLE_MIN = 10;
 const SCRAMBLE_MAX = 15;
 const REWARD_BASE = 9;          // secondi di premio = REWARD_BASE + vittorie consecutive
 const HUD_HEIGHT = 44;          // altezza della barra titolo/comandi
 const TRIPLE_TAP_MS = 600;
 const FLIP_MS = 500;            // deve combaciare con la transizione CSS delle carte
-const STORAGE_KEY = 'flipflop.size';
 
 const IMAGE_RE = /\.(jpe?g|png|gif|bmp|webp|avif)$/i;
 const MIME_BY_EXT = {
@@ -407,7 +406,6 @@ function setSize(size, { restart = true } = {}) {
     el.sizeButtons.querySelectorAll('.size-btn').forEach(btn => {
         btn.setAttribute('aria-pressed', String(Number(btn.dataset.size) === state.size));
     });
-    try { localStorage.setItem(STORAGE_KEY, String(state.size)); } catch (_) { /* modalità privata */ }
 
     buildGrid();
     relayout();
@@ -533,10 +531,4 @@ if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.is
 }
 
 buildSizeButtons();
-
-let savedSize = DEFAULT_SIZE;
-try {
-    savedSize = Number(localStorage.getItem(STORAGE_KEY)) || DEFAULT_SIZE;
-} catch (_) { /* modalità privata */ }
-
-setSize(savedSize);
+setSize(DEFAULT_SIZE);
