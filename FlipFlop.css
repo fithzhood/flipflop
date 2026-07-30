@@ -290,12 +290,13 @@ body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s
 
 /******************************************
  * 6. BARRA DI CARICAMENTO
- * Fissata al bordo superiore dello schermo: non entra nel flusso, quindi non
- * sottrae un pixel alla griglia in nessun orientamento.
+ * Fissata al bordo inferiore dello schermo (in alto la coprirebbe il foro
+ * della fotocamera): non entra nel flusso, quindi non sottrae un pixel alla
+ * griglia in nessun orientamento.
  ******************************************/
 .progress {
     position: fixed;
-    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
     height: 3px;
