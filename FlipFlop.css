@@ -214,7 +214,14 @@ body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s
     position: absolute;
     display: grid;
     perspective: 1400px;
+    transition: opacity 0.17s ease;
 }
+
+/* il puzzle viene montato tutto insieme: nessuna carta deve animarsi */
+.grid.instant .card { transition: none; }
+
+/* breve dissolvenza quando il cambio di puzzle avviene a vista */
+.grid.fading { opacity: 0; }
 
 .card {
     position: relative;
@@ -250,7 +257,7 @@ body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s
     align-items: center;
     justify-content: center;
     padding: 8px;
-    background: rgba(6, 7, 10, 0.94);
+    background: #06070a;        /* opaco: sotto ci ricostruiamo la griglia */
     z-index: 40;
     animation: fade-in 0.45s ease-out;
 }
@@ -282,7 +289,32 @@ body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s
 .victory-count.show { animation: pop-in 0.5s ease-out forwards; }
 
 /******************************************
- * 6. TOAST
+ * 6. BARRA DI CARICAMENTO
+ * Fissata al bordo superiore dello schermo: non entra nel flusso, quindi non
+ * sottrae un pixel alla griglia in nessun orientamento.
+ ******************************************/
+.progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.07);
+    z-index: 60;
+    pointer-events: none;
+}
+
+.progress-fill {
+    width: 0;
+    height: 100%;
+    border-radius: 0 2px 2px 0;
+    background: linear-gradient(90deg, var(--face-a-lit), var(--face-b-lit));
+    box-shadow: 0 0 10px rgba(107, 147, 245, 0.55);
+    transition: width 0.25s ease-out;
+}
+
+/******************************************
+ * 7. TOAST
  ******************************************/
 .toast {
     position: fixed;
@@ -303,7 +335,7 @@ body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s
 }
 
 /******************************************
- * 7. ANIMAZIONI
+ * 8. ANIMAZIONI
  ******************************************/
 @keyframes fade-in {
     from { opacity: 0; }

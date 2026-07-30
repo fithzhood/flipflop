@@ -8,9 +8,14 @@
     <meta name="theme-color" content="#0e1014">
     <title>FlipFlop</title>
     <link rel="icon" href="FlipFlop.png">
-    <link rel="stylesheet" href="FlipFlop.css?v=3">
+    <link rel="stylesheet" href="FlipFlop.css?v=4">
 </head>
 <body>
+    <!-- Barra di caricamento: sul bordo dello schermo, non toglie spazio alla griglia -->
+    <div id="progress" class="progress" hidden aria-hidden="true">
+        <div id="progressFill" class="progress-fill"></div>
+    </div>
+
     <!-- Area di gioco: occupa tutta la viewport, la griglia viene posizionata da JS -->
     <div id="stage" class="stage">
         <div id="grid" class="grid" role="grid" aria-label="Griglia FlipFlop"></div>
@@ -46,7 +51,7 @@
 
     <input type="file" id="fileInput" accept="image/*,application/zip,.zip" multiple hidden>
 
-    <script src="jszip.min.js?v=3"></script>
-    <script src="FlipFlop.js?v=3"></script>
+    <script src="jszip.min.js?v=4"></script>
+    <script src="FlipFlop.js?v=4"></script>
 </body>
 </html>

@@ -6,6 +6,10 @@
  * ogni vittoria consecutiva.
  *
  * Easter egg: triplo tocco sul titolo -> carica immagini / GIF / archivi ZIP.
+ *
+ * Il caricamento è progressivo: le immagini entrano in gioco mano a mano che
+ * sono pronte, senza mai bloccare la partita in corso. Nel serbatoio finiscono
+ * solo immagini già decodificate, così il cambio di puzzle è istantaneo.
  ******************************************/
 'use strict';
 
@@ -20,7 +24,10 @@ const SCRAMBLE_MAX = 15;
 const REWARD_BASE = 9;          // secondi di premio = REWARD_BASE + vittorie consecutive
 const HUD_HEIGHT = 44;          // altezza della barra titolo/comandi
 const TRIPLE_TAP_MS = 600;
-const FLIP_MS = 500;            // deve combaciare con la transizione CSS delle carte
+const SWAP_MS = 170;            // dissolvenza quando il puzzle cambia a vista
+const HANDOVER_MS = 350;        // quanto prima della fine del premio ricostruiamo la griglia
+const FIRST_BATCH = 20;         // immagini pronte prima di mettersi in gioco
+const DECODE_WORKERS = 3;       // decodifiche in parallelo
 
 const IMAGE_RE = /\.(jpe?g|png|gif|bmp|webp|avif)$/i;
 const MIME_BY_EXT = {
@@ -32,24 +39,25 @@ const el = {};
 [
     'stage', 'grid', 'title', 'restart', 'menuToggle', 'sizeLabel', 'menu', 'scrim',
     'sizeButtons', 'newGame', 'poolInfo', 'victory', 'victoryImg', 'victoryCount',
-    'toast', 'fileInput'
+    'toast', 'fileInput', 'progress', 'progressFill'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 const state = {
     size: DEFAULT_SIZE,
     cards: [],            // gli elementi .card, in ordine di indice
-    pool: [],             // tutte le immagini caricate (File)
-    queue: [],            // immagini non ancora usate nel giro corrente
+    pool: [],             // immagini pronte all'uso (già decodificate)
+    queue: [],            // quelle non ancora usate nel giro corrente
     faces: { front: null, back: null },
     wins: 0,              // vittorie consecutive (allunga il premio)
     locked: true          // true = i tocchi sulle carte sono ignorati
 };
 
+const progress = { done: 0, total: 0, active: false };
+
 // geometria calcolata a ogni layout
 let geom = { side: 0, card: 0, gap: 0, left: 0, top: 0 };
 
 const timers = new Set();
-let roundToken = 0;       // invalida i round in corso quando se ne avvia un altro
 
 /******************************************
  * SEZIONE 2: UTILITÀ
@@ -86,14 +94,22 @@ function toast(message) {
     toastTimer = setTimeout(() => { el.toast.hidden = true; }, 2600);
 }
 
-/******************************************
- * SEZIONE 3: IMMAGINI
- * Ogni file viene decodificato una sola volta e messo in cache:
- *  - url    -> l'immagine originale (le GIF si animano): serve per il premio
- *  - still  -> il primo fotogramma congelato: serve per le carte
- ******************************************/
-const assetCache = new Map();   // File -> Promise<asset>
+async function runWithWorkers(tasks, limit, worker) {
+    let next = 0;
+    const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+        while (next < tasks.length) await worker(tasks[next++]);
+    });
+    await Promise.all(workers);
+}
 
+/******************************************
+ * SEZIONE 3: CARICAMENTO IMMAGINI
+ * Di ogni immagine teniamo:
+ *  - url    -> l'originale (le GIF si animano): serve per il premio
+ *  - still  -> il primo fotogramma congelato: serve per le carte
+ * Entrambi vengono decodificati subito, così quando l'immagine finisce sulla
+ * griglia non c'è nessun attimo di attesa.
+ ******************************************/
 function decodeImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -113,26 +129,19 @@ function freezeFirstFrame(img) {
     });
 }
 
-function loadAsset(file) {
-    if (!file) return Promise.resolve(null);
-    if (assetCache.has(file)) return assetCache.get(file);
-
-    const promise = (async () => {
-        const url = URL.createObjectURL(file);
-        try {
-            const img = await decodeImage(url);
-            const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
-            const still = isGif ? (await freezeFirstFrame(img)) || url : url;
-            return { url, still, ratio: img.naturalWidth / img.naturalHeight };
-        } catch (err) {
-            URL.revokeObjectURL(url);
-            console.warn('FlipFlop: scarto', file.name, err.message);
-            return null;
-        }
-    })();
-
-    assetCache.set(file, promise);
-    return promise;
+async function buildAsset(file) {
+    const url = URL.createObjectURL(file);
+    try {
+        const img = await decodeImage(url);
+        const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+        const still = isGif ? (await freezeFirstFrame(img)) || url : url;
+        if (still !== url) await decodeImage(still);   // scaldiamo anche il fotogramma fisso
+        return { url, still, ratio: img.naturalWidth / img.naturalHeight };
+    } catch (err) {
+        URL.revokeObjectURL(url);
+        console.warn('FlipFlop: scarto', file.name, err.message);
+        return null;
+    }
 }
 
 function mimeFor(name) {
@@ -147,7 +156,7 @@ function isImage(file) {
     return file.type.startsWith('image/') || IMAGE_RE.test(file.name);
 }
 
-async function extractZip(file) {
+async function listZipImages(file) {
     if (typeof JSZip === 'undefined') {
         toast('Supporto ZIP non disponibile');
         return [];
@@ -162,15 +171,90 @@ async function extractZip(file) {
             }
         });
         entries.sort((a, b) => a.name.localeCompare(b.name));
-        return await Promise.all(entries.map(async entry => {
-            const blob = await entry.async('blob');
-            return new File([blob], entry.name, { type: mimeFor(entry.name) });
-        }));
+        return entries;
     } catch (err) {
         console.error('FlipFlop: ZIP illeggibile', err);
         toast('ZIP illeggibile');
         return [];
     }
+}
+
+function showProgress(count) {
+    progress.total += count;
+    progress.active = true;
+    el.progress.hidden = false;
+    paintProgress();
+}
+
+function stepProgress() {
+    progress.done++;
+    paintProgress();
+}
+
+function paintProgress() {
+    const ratio = progress.total ? progress.done / progress.total : 0;
+    el.progressFill.style.width = `${(ratio * 100).toFixed(1)}%`;
+    updatePoolInfo();
+}
+
+function endProgress() {
+    if (progress.done < progress.total) return;   // c'è ancora un altro caricamento in corso
+    progress.active = false;
+    progress.done = 0;
+    progress.total = 0;
+    setTimeout(() => {
+        if (!progress.active) {
+            el.progress.hidden = true;
+            el.progressFill.style.width = '0%';
+        }
+    }, 400);
+    updatePoolInfo();
+}
+
+function addToPool(asset) {
+    state.pool.push(asset);
+    // la infiliamo tra quelle ancora da usare, in un punto a caso
+    state.queue.splice(randInt(0, state.queue.length), 0, asset);
+    if (!state.faces.front && state.pool.length >= FIRST_BATCH) swapRound();
+}
+
+async function addFiles(files) {
+    const tasks = [];
+    for (const file of files) {
+        if (isZip(file)) {
+            const entries = await listZipImages(file);
+            entries.forEach(entry => tasks.push(async () => {
+                const blob = await entry.async('blob');
+                return new File([blob], entry.name, { type: mimeFor(entry.name) });
+            }));
+        } else if (isImage(file)) {
+            tasks.push(async () => file);
+        }
+    }
+
+    if (!tasks.length) {
+        toast('Nessuna immagine trovata');
+        return;
+    }
+
+    showProgress(tasks.length);
+    let added = 0;
+    await runWithWorkers(tasks, DECODE_WORKERS, async task => {
+        try {
+            const asset = await buildAsset(await task());
+            if (asset) { addToPool(asset); added++; }
+        } catch (err) {
+            console.warn('FlipFlop: immagine saltata', err);
+        }
+        stepProgress();
+    });
+    endProgress();
+
+    // archivio piccolo: si parte con quello che c'è, senza aspettare le 20
+    if (!state.faces.front && state.pool.length) swapRound();
+
+    updatePoolInfo();
+    toast(added ? `${added} pronte · ${state.pool.length} in archivio` : 'Nessuna immagine valida');
 }
 
 /******************************************
@@ -321,35 +405,55 @@ function setLocked(locked) {
 /******************************************
  * SEZIONE 6: PARTITA E VITTORIA
  ******************************************/
-function nextPair() {
-    if (state.pool.length === 0) return [null, null];
-    if (state.pool.length === 1) return [state.pool[0], null];
-    if (state.queue.length < 2) state.queue = shuffled(state.pool);
+function takePair() {
+    const pool = state.pool;
+    if (!pool.length) return [null, null];
+    if (pool.length === 1) return [pool[0], null];
+
+    if (state.queue.length < 2) {
+        // giro finito: si ricomincia, ma senza ripescare le due appena viste
+        const current = [state.faces.front, state.faces.back].filter(Boolean);
+        const rest = pool.filter(asset => !current.includes(asset));
+        state.queue = shuffled(rest.length >= 2 ? rest : pool);
+    }
     return [state.queue.pop(), state.queue.pop()];
 }
 
-async function newRound() {
-    const token = ++roundToken;
-    clearTimers();
-    setLocked(true);
-    hideVictory();
-
-    const [fileA, fileB] = nextPair();
-    const [front, back] = await Promise.all([loadAsset(fileA), loadAsset(fileB)]);
-    if (token !== roundToken) return;
-
+/**
+ * Costruisce il puzzle successivo in un colpo solo e senza animazioni: le due
+ * immagini sono già decodificate, quindi non esiste un istante in cui si veda
+ * ancora quella vecchia. Chiamata sotto il premio, il cambio è invisibile.
+ */
+function startRound() {
+    const [front, back] = takePair();
     state.faces.front = front;
     state.faces.back = back;
 
+    el.grid.classList.add('instant');
     state.cards.forEach(card => card.classList.remove('flipped'));
     relayout();
+    scramble();
+    void el.grid.offsetWidth;                 // forza il reflow prima di riattivare le transizioni
+    el.grid.classList.remove('instant');
 
-    // lasciamo finire l'animazione di reset prima di mescolare
-    later(FLIP_MS + 80, () => {
-        if (token !== roundToken) return;
-        scramble();
-        setLocked(false);
+    setLocked(false);
+}
+
+/** Come startRound, ma con una breve dissolvenza: serve quando il cambio è a vista. */
+function swapRound() {
+    setLocked(true);
+    el.grid.classList.add('fading');
+    later(SWAP_MS, () => {
+        startRound();
+        el.grid.classList.remove('fading');
     });
+}
+
+function newGame({ resetWins = true } = {}) {
+    clearTimers();
+    hideVictory();
+    if (resetWins) state.wins = 0;
+    swapRound();
 }
 
 function onCardClick(event) {
@@ -368,25 +472,24 @@ function win() {
 }
 
 function showVictory(asset) {
-    const seconds = REWARD_BASE + state.wins;
+    const seconds = asset ? REWARD_BASE + state.wins : 1.2;
     document.body.classList.add('rewarding');
 
-    if (!asset) {
+    if (asset) {
+        el.victoryImg.src = asset.url;          // l'originale: le GIF ripartono e si animano
+        el.victoryCount.textContent = String(seconds);
+        el.victoryCount.classList.remove('show');
+        later((seconds - 1) * 1000, () => el.victoryCount.classList.add('show'));
+    } else {
         // nessuna immagine caricata: un lampo di conferma e via con la prossima
         el.victoryCount.textContent = '★';
         el.victoryCount.classList.add('show');
-        el.victory.hidden = false;
-        later(1200, newRound);
-        return;
     }
-
-    el.victoryImg.src = asset.url;      // l'originale: le GIF ripartono e si animano
-    el.victoryCount.textContent = String(seconds);
-    el.victoryCount.classList.remove('show');
     el.victory.hidden = false;
 
-    later((seconds - 1) * 1000, () => el.victoryCount.classList.add('show'));
-    later(seconds * 1000, newRound);
+    // il puzzle nuovo viene montato mentre il premio è ancora sopra
+    later(seconds * 1000 - HANDOVER_MS, startRound);
+    later(seconds * 1000, hideVictory);
 }
 
 function hideVictory() {
@@ -399,7 +502,7 @@ function hideVictory() {
 /******************************************
  * SEZIONE 7: INTERFACCIA
  ******************************************/
-function setSize(size, { restart = true } = {}) {
+function setSize(size) {
     state.size = Math.min(MAX_SIZE, Math.max(MIN_SIZE, size));
     state.wins = 0;                     // il premio riparte da capo a ogni cambio griglia
     el.sizeLabel.textContent = `${state.size}×${state.size}`;
@@ -407,9 +510,11 @@ function setSize(size, { restart = true } = {}) {
         btn.setAttribute('aria-pressed', String(Number(btn.dataset.size) === state.size));
     });
 
+    clearTimers();
+    hideVictory();
     buildGrid();
     relayout();
-    if (restart) newRound();
+    startRound();
 }
 
 function buildSizeButtons() {
@@ -435,30 +540,13 @@ function setMenuOpen(open) {
 
 function updatePoolInfo() {
     const n = state.pool.length;
-    el.poolInfo.textContent = n === 0
-        ? 'Nessuna immagine caricata'
-        : `${n} immagin${n === 1 ? 'e' : 'i'} in archivio`;
-}
-
-async function addFiles(files) {
-    if (!files.length) return;
-
-    const added = [];
-    for (const file of files) {
-        if (isZip(file)) added.push(...await extractZip(file));
-        else if (isImage(file)) added.push(file);
+    if (progress.active) {
+        el.poolInfo.textContent = `Carico… ${progress.done}/${progress.total}`;
+    } else {
+        el.poolInfo.textContent = n === 0
+            ? 'Nessuna immagine caricata'
+            : `${n} immagin${n === 1 ? 'e' : 'i'} in archivio`;
     }
-
-    if (!added.length) {
-        toast('Nessuna immagine trovata');
-        return;
-    }
-
-    state.pool.push(...added);
-    state.queue = [];
-    updatePoolInfo();
-    toast(`+${added.length} · ${state.pool.length} in archivio`);
-    newRound();
 }
 
 /******************************************
@@ -466,15 +554,14 @@ async function addFiles(files) {
  ******************************************/
 el.grid.addEventListener('click', onCardClick);
 
-el.restart.addEventListener('click', () => { state.wins = 0; newRound(); });
+el.restart.addEventListener('click', () => newGame());
 
 el.menuToggle.addEventListener('click', () => setMenuOpen(el.menu.hidden));
 el.scrim.addEventListener('click', () => setMenuOpen(false));
 
 el.newGame.addEventListener('click', () => {
     setMenuOpen(false);
-    state.wins = 0;
-    newRound();
+    newGame();
 });
 
 el.sizeButtons.addEventListener('click', event => {
@@ -511,7 +598,7 @@ el.fileInput.addEventListener('change', event => {
     // la FileList è viva: va copiata prima di azzerare il campo
     const files = Array.from(event.target.files || []);
     event.target.value = '';            // così lo stesso file può essere ricaricato
-    addFiles(files);
+    if (files.length) addFiles(files);
 });
 
 let resizeFrame = 0;
