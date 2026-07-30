@@ -10,6 +10,8 @@
     --accent:    #5b8cff;
     --face-a:    #2f5fd0;   /* lato "fronte" */
     --face-b:    #d0452f;   /* lato "retro"  */
+    --face-a-lit: #6b93f5;  /* stessi due colori, schiariti per il testo */
+    --face-b-lit: #f57a63;
     --hud:       44px;
     --card-radius: 4px;
     --safe-t: env(safe-area-inset-top, 0px);
@@ -61,19 +63,21 @@ body {
 /* durante il premio resta solo l'immagine */
 body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 
+/* "Flip" blu e "Flop" rosso: gli stessi due lati delle carte */
 .title {
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--face-a-lit);
     cursor: default;
-    transition: color 0.25s, opacity 0.25s;
+    opacity: 0.85;
+    transition: opacity 0.25s, filter 0.25s;
 }
 
-.title span { color: rgba(91, 140, 255, 0.55); }
+.title span { color: var(--face-b-lit); }
 
-.title.tapped { color: var(--fg); }
+.title.tapped { opacity: 1; filter: brightness(1.25); }
 
 .hud-actions { display: flex; gap: 8px; }
 
