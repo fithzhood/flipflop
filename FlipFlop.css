@@ -1,0 +1,322 @@
+/******************************************
+ * 1. BASE
+ ******************************************/
+:root {
+    --bg:        #0e1014;
+    --panel:     rgba(22, 26, 34, 0.94);
+    --fg:        #e8ecf4;
+    --muted:     rgba(232, 236, 244, 0.5);
+    --line:      rgba(255, 255, 255, 0.12);
+    --accent:    #5b8cff;
+    --face-a:    #2f5fd0;   /* lato "fronte" */
+    --face-b:    #d0452f;   /* lato "retro"  */
+    --hud:       44px;
+    --card-radius: 4px;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* l'attributo hidden deve vincere anche sugli elementi con display esplicito */
+[hidden] { display: none !important; }
+
+html, body {
+    height: 100%;
+    overflow: hidden;               /* mai barre di scorrimento */
+    overscroll-behavior: none;
+}
+
+body {
+    background: radial-gradient(120% 90% at 50% 0%, #191f2b 0%, var(--bg) 62%);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+/******************************************
+ * 2. HUD (titolo + comandi)
+ ******************************************/
+.hud {
+    position: fixed;
+    top: calc(var(--safe-t) + 6px);
+    left: calc(var(--safe-l) + 10px);
+    right: calc(var(--safe-r) + 10px);
+    height: var(--hud);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    z-index: 20;
+    pointer-events: none;           /* solo i figli sono cliccabili */
+}
+
+.hud > * { pointer-events: auto; }
+
+/* durante il premio resta solo l'immagine */
+body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+
+.title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: default;
+    transition: color 0.25s, opacity 0.25s;
+}
+
+.title span { color: rgba(91, 140, 255, 0.55); }
+
+.title.tapped { color: var(--fg); }
+
+.hud-actions { display: flex; gap: 8px; }
+
+.pill {
+    min-width: 46px;
+    height: 34px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    background: rgba(20, 24, 32, 0.6);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.pill:active { transform: scale(0.94); }
+.pill-icon { min-width: 34px; padding: 0; font-size: 17px; }
+
+.pill[aria-expanded="true"] {
+    background: rgba(91, 140, 255, 0.22);
+    border-color: rgba(91, 140, 255, 0.6);
+}
+
+/******************************************
+ * 3. MENU
+ ******************************************/
+.scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 25;
+    animation: fade-in 0.18s ease-out;
+}
+
+.menu {
+    position: fixed;
+    top: calc(var(--safe-t) + 52px);
+    right: calc(var(--safe-r) + 10px);
+    width: min(280px, calc(100vw - 20px - var(--safe-l) - var(--safe-r)));
+    max-height: calc(100dvh - var(--safe-t) - var(--safe-b) - 64px);
+    overflow-y: auto;
+    padding: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    z-index: 30;
+    animation: menu-in 0.18s ease-out;
+}
+
+.menu-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+.size-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.size-btn {
+    height: 44px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, transform 0.1s;
+}
+
+.size-btn:active { transform: scale(0.94); }
+
+.size-btn[aria-pressed="true"] {
+    background: rgba(91, 140, 255, 0.22);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.btn-primary {
+    width: 100%;
+    height: 46px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: filter 0.18s, transform 0.1s;
+}
+
+.btn-primary:active { transform: scale(0.97); filter: brightness(0.92); }
+
+.menu-foot {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+}
+
+/******************************************
+ * 4. GRIGLIA E CARTE
+ ******************************************/
+.stage {
+    position: fixed;
+    top: var(--safe-t);
+    right: var(--safe-r);
+    bottom: var(--safe-b);
+    left: var(--safe-l);
+}
+
+.grid {
+    position: absolute;
+    display: grid;
+    perspective: 1400px;
+}
+
+.card {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+    cursor: pointer;
+}
+
+.card.flipped { transform: rotateY(180deg); }
+
+.face {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--card-radius);
+    background-repeat: no-repeat;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.face-front { background-color: var(--face-a); }
+.face-back  { background-color: var(--face-b); transform: rotateY(180deg); }
+
+.grid.locked { pointer-events: none; }
+
+/******************************************
+ * 5. VITTORIA (immagine intera, mai tagliata)
+ ******************************************/
+.victory {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: rgba(6, 7, 10, 0.94);
+    z-index: 40;
+    animation: fade-in 0.45s ease-out;
+}
+
+.victory-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+.victory-count {
+    position: absolute;
+    top: calc(var(--safe-t) + 14px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.5);
+    padding: 6px 16px;
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 999px;
+    opacity: 0;
+}
+
+.victory-count.show { animation: pop-in 0.5s ease-out forwards; }
+
+/******************************************
+ * 6. TOAST
+ ******************************************/
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--safe-b) + 22px);
+    transform: translateX(-50%);
+    max-width: min(340px, 88vw);
+    padding: 10px 18px;
+    font-size: 13px;
+    text-align: center;
+    color: var(--fg);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    z-index: 50;
+    animation: fade-in 0.2s ease-out;
+}
+
+/******************************************
+ * 7. ANIMAZIONI
+ ******************************************/
+@keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes menu-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes pop-in {
+    from { opacity: 0; transform: translateX(-50%) scale(0.5); }
+    to   { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card { transition-duration: 0.01ms; }
+    .victory, .menu, .scrim, .toast { animation: none; }
+}

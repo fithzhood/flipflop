@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta name="theme-color" content="#0e1014">
+    <title>FlipFlop</title>
+    <link rel="icon" href="FlipFlop.png">
+    <link rel="stylesheet" href="FlipFlop.css?v=2">
+</head>
+<body>
+    <!-- Area di gioco: occupa tutta la viewport, la griglia viene posizionata da JS -->
+    <div id="stage" class="stage">
+        <div id="grid" class="grid" role="grid" aria-label="Griglia FlipFlop"></div>
+    </div>
+
+    <!-- HUD: titolo a sinistra, comandi a destra. Non ruba spazio alla griglia. -->
+    <header class="hud">
+        <h1 id="title" class="title" title="FlipFlop">Flip<span>Flop</span></h1>
+        <div class="hud-actions">
+            <button id="restart" class="pill pill-icon" type="button" aria-label="Nuova partita">↻</button>
+            <button id="menuToggle" class="pill" type="button" aria-expanded="false" aria-controls="menu">
+                <span id="sizeLabel">6×6</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="scrim" class="scrim" hidden></div>
+
+    <nav id="menu" class="menu" hidden aria-label="Impostazioni">
+        <p class="menu-label">Dimensione griglia</p>
+        <div id="sizeButtons" class="size-buttons"></div>
+        <button id="newGame" class="btn-primary" type="button">Nuova partita</button>
+        <p id="poolInfo" class="menu-foot">Nessuna immagine caricata</p>
+    </nav>
+
+    <!-- Ricompensa: l'immagine completa, mai ritagliata -->
+    <div id="victory" class="victory" hidden>
+        <img id="victoryImg" class="victory-img" alt="">
+        <span id="victoryCount" class="victory-count"></span>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <input type="file" id="fileInput" accept="image/*,application/zip,.zip" multiple hidden>
+
+    <script src="jszip.min.js?v=2"></script>
+    <script src="FlipFlop.js?v=2"></script>
+</body>
+</html>
