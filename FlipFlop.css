@@ -63,7 +63,8 @@ body {
 /* durante il premio resta solo l'immagine */
 body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 
-/* "Flip" blu e "Flop" rosso: gli stessi due lati delle carte */
+/* "Flip" blu e "Flop" rosso: gli stessi due lati delle carte.
+   Nessuna reazione al tocco: l'easter egg dei tre tocchi deve restare invisibile. */
 .title {
     font-size: 15px;
     font-weight: 700;
@@ -72,12 +73,9 @@ body.rewarding .hud { opacity: 0; pointer-events: none; transition: opacity 0.3s
     color: var(--face-a-lit);
     cursor: default;
     opacity: 0.85;
-    transition: opacity 0.25s, filter 0.25s;
 }
 
 .title span { color: var(--face-b-lit); }
-
-.title.tapped { opacity: 1; filter: brightness(1.25); }
 
 .hud-actions { display: flex; gap: 8px; }
 

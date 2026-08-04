@@ -578,20 +578,16 @@ document.addEventListener('keydown', event => {
 // Easter egg: tre tocchi rapidi sul titolo aprono il caricamento immagini
 let tapCount = 0;
 let tapTimer = null;
+// Nessun riscontro visivo: il titolo non deve tradire che è toccabile.
 el.title.addEventListener('click', () => {
     tapCount++;
     clearTimeout(tapTimer);
-    el.title.classList.add('tapped');
     if (tapCount >= 3) {
         tapCount = 0;
-        el.title.classList.remove('tapped');
         el.fileInput.click();
         return;
     }
-    tapTimer = setTimeout(() => {
-        tapCount = 0;
-        el.title.classList.remove('tapped');
-    }, TRIPLE_TAP_MS);
+    tapTimer = setTimeout(() => { tapCount = 0; }, TRIPLE_TAP_MS);
 });
 
 el.fileInput.addEventListener('change', event => {
